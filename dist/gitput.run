@@ -1,0 +1,2 @@
+file_source:'C:\fichiersource1.ini' field_source:'source1' file_target:'C:\fichiertarget1.ini' field_target:'target1'
+file_source:'C:\fichiersource2.ini' field_source:'source2' file_target:'C:\fichiertarget2.ini' field_target:'target2'
