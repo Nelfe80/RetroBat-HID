@@ -1,2 +1,4 @@
 file_source:'C:\fichiersource1.ini' section_source:'Section1' field_source:'source1' file_target:'C:\fichiertarget1.ini' section_target:'Section2' field_target:'target1'
 file_source:'C:\fichiersource2.ini' field_source:'source2' file_target:'C:\fichiertarget2.ini' field_target:'target2'
+file_source:'C:\fichiersource1.ini' section_source:'Device_0' field_source:'productid' if_source:'productid = 0x8042' file_target:'C:\fichiertarget1.ini' section_target:'Player1 Device configuration' field_target:'P1DeviceName'
+
