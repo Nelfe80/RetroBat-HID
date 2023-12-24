@@ -1,27 +1,42 @@
-import configparser
 import re
 
+def read_ini_field(file_path, field):
+    with open(file_path, 'r') as file:
+        for line in file:
+            if line.startswith(field):
+                return line.split('=')[1].strip()
+    return None
+
+def write_ini_field(file_path, field, value):
+    lines = []
+    found = False
+    with open(file_path, 'r') as file:
+        for line in file:
+            if line.startswith(field):
+                lines.append(f'{field}={value}\n')
+                found = True
+            else:
+                lines.append(line)
+
+    if not found:
+        lines.append(f'{field}={value}\n')
+
+    with open(file_path, 'w') as file:
+        file.writelines(lines)
+
 def process_instruction(line):
-    # Utiliser une expression régulière pour extraire les informations
     pattern = r"file_source:'(.+)' field_source:'(.+)' file_target:'(.+)' field_target:'(.+)'"
     match = re.match(pattern, line)
 
     if match:
         file_source, field_source, file_target, field_target = match.groups()
 
-        # Lire la source
-        config_source = configparser.ConfigParser()
-        config_source.read(file_source)
-        value = config_source.get('DEFAULT', field_source)  # Assumer que le champ est dans la section 'DEFAULT'
+        # Lire la valeur du champ source
+        value = read_ini_field(file_source, field_source)
 
-        # Écrire dans la cible
-        config_target = configparser.ConfigParser()
-        config_target.read(file_target)
-        if not config_target.has_section('DEFAULT'):
-            config_target.add_section('DEFAULT')
-        config_target.set('DEFAULT', field_target, value)
-        with open(file_target, 'w') as target_file:
-            config_target.write(target_file)
+        # Écrire la valeur dans le champ cible
+        if value is not None:
+            write_ini_field(file_target, field_target, value)
 
 def execute_instructions_from_file(file_path):
     with open(file_path, 'r') as file:
