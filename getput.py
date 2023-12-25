@@ -1,43 +1,75 @@
 import configparser
 import re
 
-def condition_met(config, section, condition):
+def condition_met(config_lines, section, condition):
     if condition:
-        key, value = [x.strip() for x in condition.split('=')]
-        return config.get(section, key, fallback=None) == value
+        section_header = f"[{section}]"
+        section_found = False
+        for line in config_lines:
+            if line.strip().lower() == section_header.lower():
+                section_found = True
+            elif line.strip().startswith('[') and section_found:
+                # Si une nouvelle section commence, arrête la recherche
+                break
+            elif section_found and condition in line:
+                return True
+        return False
     return True
 
+def update_target_config(file_path, section, key, new_value):
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+
+    section_found = False
+    key_found = False
+    for i, line in enumerate(lines):
+        if line.strip().lower() in [f"{section.lower()}", f";{section.lower()}"]:
+            section_found = True
+        if section_found and line.strip().startswith(f"{key} ="):
+            lines[i] = f"{key} = {new_value}\n"
+            key_found = True
+            break
+
+    if not key_found and section_found:
+        lines.append(f"{key} = {new_value}\n")
+
+    with open(file_path, 'w') as file:
+        file.writelines(lines)
+
 def process_instruction(line):
-    pattern = r"file_source:'(.+)' section_source:'(.+)' field_source:'(.+)'(?: if_source:'(.+)')? file_target:'(.+)' section_target:'(.+)' field_target:'(.+)'"
+    print(f"Traitement de la ligne : {line}")
+    pattern = r"file_source:'(.+?)' section_source:'(.+?)' field_source:'(.+?)'(?: if_source:'(.+?)')? file_target:'(.+?)' section_target:'(.+?)' field_target:'(.+?)'"
     match = re.match(pattern, line)
 
     if match:
         file_source, section_source, field_source, if_source, file_target, section_target, field_target = match.groups()
+        print(f"Source : {file_source}, Section Source : {section_source}, Champ Source : {field_source}, Condition Source : {if_source}")
+        print(f"Cible : {file_target}, Section Cible : {section_target}, Champ Cible : {field_target}")
 
-        # Lire la source
-        config_source = configparser.ConfigParser()
-        config_source.read(file_source)
+        with open(file_source, 'r') as f:
+            source_lines = f.readlines()
 
-        if condition_met(config_source, section_source, if_source):
-            value = config_source.get(section_source, field_source, fallback=None)
+        if condition_met(source_lines, section_source, if_source):
+            value = None
+            for line in source_lines:
+                if line.strip().startswith(f"{field_source} ="):
+                    value = line.split('=')[1].strip()
+                    break
 
-            # Écrire dans la cible
-            if value is not None:
-                config_target = configparser.ConfigParser()
-                config_target.read(file_target)
-                if not config_target.has_section(section_target):
-                    config_target.add_section(section_target)
-                config_target.set(section_target, field_target, value)
-                with open(file_target, 'w') as target_file:
-                    config_target.write(target_file)
+            if value:
+                update_target_config(file_target, section_target, field_target, value)
+                print(f"Valeur {value} écrite dans {section_target}[{field_target}] du fichier cible")
+            else:
+                print("Valeur non trouvée, aucune écriture dans le fichier cible.")
+        else:
+            print("La condition spécifiée n'est pas remplie. Aucune action effectuée.")
+    else:
+        print(f"Impossible d'analyser la ligne : {line}")
 
 def execute_instructions_from_file(file_path):
     with open(file_path, 'r') as file:
         for line in file:
             process_instruction(line.strip())
 
-# Chemin du fichier getput.run
 run_file = 'getput.run'
-
-# Exécution des instructions
 execute_instructions_from_file(run_file)
