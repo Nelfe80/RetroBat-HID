@@ -1,4 +1,4 @@
-import pywinusb.hid as hid
+import hid
 import configparser
 import os
 
@@ -17,16 +17,18 @@ def get_hid_devices():
     config.read(ini_path)
 
     # Trouver tous les périphériques HID
-    all_devices = hid.find_all_hid_devices()
+    all_devices = hid.enumerate()
 
     # Parcourir et enregistrer les détails des périphériques HID
     for index, device in enumerate(all_devices):
         section_name = f'Device_{index}'
+        hidpath = bytes.decode(device['path']).replace('\\\\', '\\')
+        hidpath = '\\' + hidpath  # Ajouter la barre oblique manquante
         config[section_name] = {
-            'VendorID': hex(device.vendor_id),
-            'ProductID': hex(device.product_id),
-            'SerialNumber': device.serial_number or 'None',
-            'HIDPath': device.device_path
+            'VendorID': hex(device['vendor_id']),
+            'ProductID': hex(device['product_id']),
+            'SerialNumber': device['serial_number'] or 'None',
+            'HIDPath': hidpath  # Conserver la casse originale
         }
 
     # Écrire dans le fichier INI
