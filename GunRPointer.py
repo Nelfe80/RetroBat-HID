@@ -10,66 +10,62 @@ import configparser
 import psutil
 import logging
 
-KEY_CLICK_LEFT = 'w'
-KEY_CLICK_MIDDLE = 'x'
-KEY_CLICK_RIGHT = 'e'
-KEY_DOUBLE_CLICK_LEFT = 'z'
-KEY_DOUBLE_CLICK_MIDDLE = 'a'
-KEY_DOUBLE_CLICK_RIGHT = 'q'
-KEY_SCROLL_UP = 's'
-KEY_SCROLL_DOWN = 'd'
-
-USE_RELEASE_ALL_KEYS_SIMPLE_CLICK_LEFT = False
-USE_RELEASE_ALL_KEYS_SIMPLE_CLICK_MIDDLE = False
-USE_RELEASE_ALL_KEYS_SIMPLE_CLICK_RIGHT = True
-USE_RELEASE_ALL_KEYS_DOUBLE_CLICK_LEFT = False
-USE_RELEASE_ALL_KEYS_DOUBLE_CLICK_MIDDLE = False
-USE_RELEASE_ALL_KEYS_DOUBLE_CLICK_RIGHT = False
-USE_RELEASE_ALL_KEYS_RELEASE_CLICK_LEFT = False
-USE_RELEASE_ALL_KEYS_RELEASE_CLICK_MIDDLE = False
-USE_RELEASE_ALL_KEYS_RELEASE_CLICK_RIGHT = False
-USE_RELEASE_ALL_KEYS_SCROLL_UP = False
-USE_RELEASE_ALL_KEYS_SCROLL_DOWN = False
-
-USE_ABSOLUTE_MODE_SIMPLE_CLICK_LEFT = False
-USE_ABSOLUTE_MODE_SIMPLE_CLICK_MIDDLE = False
-USE_ABSOLUTE_MODE_SIMPLE_CLICK_RIGHT = True
-USE_ABSOLUTE_MODE_DOUBLE_CLICK_LEFT = False
-USE_ABSOLUTE_MODE_DOUBLE_CLICK_MIDDLE = False
-USE_ABSOLUTE_MODE_DOUBLE_CLICK_RIGHT = False
-USE_ABSOLUTE_MODE_RELEASE_CLICK_LEFT = False
-USE_ABSOLUTE_MODE_RELEASE_CLICK_MIDDLE = False
-USE_ABSOLUTE_MODE_RELEASE_CLICK_RIGHT = False
-USE_ABSOLUTE_MODE_SCROLL_UP = False
-USE_ABSOLUTE_MODE_SCROLL_DOWN = False
-
-INI_TOLERANCE = 50
-INI_DELAY_RELEASE_AFTER_PRESS = 0.05
-INI_DOUBLE_CLICK_TIMING = 0.2
-INI_REFRESH_CHECK_POSITION = 0.1
-# spring / friction / elastic / gravitational / tension
-INI_FORCE_TYPE_DEFAULT_MODE_X = "spring"
-INI_FORCE_TYPE_DEFAULT_MODE_Y = "positive"
-INI_FORCE_TYPE_ABSOLUTE_MODE_X = "spring"
-INI_FORCE_TYPE_ABSOLUTE_MODE_Y = "spring"
-INI_REFRESH_FORCE_CALCUL = 0.01
-INI_MOVING_MODE_DEFAULT = "omnidirectional" #vertical / horizontal / omnidirectional in relative pointer mode
-INI_MOVING_MODE_TARGETZOOM = "omnidirectional" #vertical / horizontal / omnidirectional in absolute pointer mode
-
 # Variables globales
-absolute_mode = False
-config = configparser.ConfigParser()
-pyautogui.FAILSAFE = False
-running = True
 logging.basicConfig(level=logging.INFO)
-double_click_timing = INI_DOUBLE_CLICK_TIMING # Temps maximum en secondes pour considérer deux clics comme un double clic
-last_click_time = {mouse.Button.left: 0, mouse.Button.middle: 0, mouse.Button.right: 0}
+
+running = True
+absolute_mode = False
 mouse_moved = False
+pyautogui.FAILSAFE = False
 
+tolerance_default_x = 0
+tolerance_default_y = 0
+tolerance_absolute_x = 0
+tolerance_absolute_y = 0
 
+config = configparser.ConfigParser()
+
+def load_config_mapper(system, game):
+    # Obtention du répertoire de travail actuel
+    current_working_dir = os.getcwd()
+
+    # Construction du chemin vers le fichier INI spécifique au jeu
+    ini_path = os.path.join(current_working_dir, 'mappers', system, f"{game}.ini")
+
+    # Vérification de l'existence du fichier INI spécifique
+    if not os.path.exists(ini_path):
+        logging.info(f"Fichier INI spécifique non trouvé pour {system}/{game}, utilisation du fichier par défaut.")
+        sys.exit(1)
+        # Si non trouvé, utilisation du chemin du fichier INI par défaut
+        #ini_path = os.path.join(current_working_dir, 'mappers', 'default.ini')
+
+    # Affichage du chemin du fichier INI pour le débogage
+    print(f"Chemin du fichier INI: {ini_path}")
+
+    # Lecture du fichier INI
+    config = configparser.ConfigParser()
+    config.read(ini_path)
+    return config
+
+def extract_game_and_system(args):
+    game = next((arg.split("=")[1] for arg in args if "--game" in arg), "")
+    system = next((arg.split("=")[1] for arg in args if "--system" in arg), "")
+    return game, system
+
+def extract_ini_settings(config):
+    global reactivity, attraction, refresh, mouse_button_right, mouse_button_left
+    INI_TOLERANCE_DEFAULT_MODE_X = int(config['Settings']['tolerancedx'])
+    tolerance_default_y = int(config['Settings']['tolerancedy'])
+    tolerance_absolute_x = int(config['Settings']['toleranceax'])
+    tolerance_absolute_y = int(config['Settings']['toleranceay'])
+    reactivity = float(config['Settings']['reactivity'])
+    attraction = int(config['Settings']['attraction'])
+    refresh = float(config['Settings']['refresh'])
+    mouse_button_right = config['Keys']['mouse_button_right']
+    mouse_button_left = config['Keys']['mouse_button_left']
 
 def initialize_mouse_and_keyboard_control():
-    global running, keys_pressed, keyboard_controller, screen_width, screen_height, centre_x, centre_y, tolerance
+    global running, keys_pressed, keyboard_controller, screen_width, screen_height, centre_x, centre_y, tolerance_x, tolerance_y
 
     # État des touches
     keys_pressed = {
@@ -86,8 +82,11 @@ def initialize_mouse_and_keyboard_control():
     screen_width, screen_height = pyautogui.size()
     centre_x, centre_y = screen_width / 2, screen_height / 2
 
-    # Zone de tolérance autour du centre
-    tolerance = INI_TOLERANCE  # Tolérance de 13 pixels autour du centre
+    # Zones de tolérance autour du centre (en pourcentage de la largeur et de la hauteur de l'écran)
+    tolerance_default_x = (INI_TOLERANCE_DEFAULT_MODE_X / 100.0) * screen_width
+    tolerance_default_y = (INI_TOLERANCE_DEFAULT_MODE_Y / 100.0) * screen_height
+    tolerance_absolute_x = (INI_TOLERANCE_ABSOLUTE_MODE_X / 100.0) * screen_width
+    tolerance_absolute_y = (INI_TOLERANCE_ABSOLUTE_MODE_Y / 100.0) * screen_height
 
 def check_if_already_running():
     current_process_name = "GunRPointer.exe"
@@ -100,21 +99,6 @@ def check_if_already_running():
     if process_count > 2:  # Il y a plus d'une instance, y compris celle-ci
         logging.info("Une autre instance de GunRPointer est déjà en cours d'exécution. Exiting.")
         sys.exit(1)
-
-def extract_game_and_system(args):
-    game = next((arg.split("=")[1] for arg in args if "--game" in arg), "")
-    system = next((arg.split("=")[1] for arg in args if "--system" in arg), "")
-    return game, system
-
-def load_config_mapper(system, game):
-    ini_path = f"/mappers/{system}/{game}.ini"
-    if not os.path.exists(ini_path):
-        logging.info(f"Fichier INI non trouvé: {ini_path}")
-        ini_path = "/mappers/default.ini"
-
-    config = configparser.ConfigParser()
-    config.read(ini_path)
-    return config
 
 key_press_times = {}
 key_press_times_lock = threading.Lock()
@@ -134,20 +118,13 @@ def press_and_release_after_delay(key, delay=0.05):
 
     threading.Thread(target=release_key_after_delay).start()
 
-def extract_ini_settings(config):
-    global tolerance, reactivity, attraction, refresh, mouse_button_right, mouse_button_left
-    tolerance = int(config['Settings']['tolerance'])
-    reactivity = float(config['Settings']['reactivity'])
-    attraction = int(config['Settings']['attraction'])
-    refresh = float(config['Settings']['refresh'])
-    mouse_button_right = config['Keys']['mouse_button_right']
-    mouse_button_left = config['Keys']['mouse_button_left']
-
 def is_cursor_near_center_x(x):
-    return centre_x - tolerance <= x <= centre_x + tolerance
+    if absolute_mode: return centre_x - tolerance_absolute_x <= x <= centre_x + tolerance_absolute_x
+    else: return centre_x - tolerance_default_x <= x <= centre_x + tolerance_default_x
 
 def is_cursor_near_center_y(y):
-    return centre_y - tolerance <= y <= centre_y + tolerance
+    if absolute_mode: return centre_y - tolerance_absolute_y <= y <= centre_y + tolerance_absolute_y
+    else: return centre_y - tolerance_default_y <= y <= centre_y + tolerance_default_y
 
 def release_all_keys():
     for key in keys_pressed.keys():
@@ -226,12 +203,13 @@ def simuler_action(key, duration):
     time.sleep(duration)
     keyboard_controller.release(key)
 
+last_click_time = {mouse.Button.left: 0, mouse.Button.middle: 0, mouse.Button.right: 0}
 def on_mouse_click(x, y, button, pressed):
     global last_click_time
     current_time = time.time()
 
     if pressed:
-        if current_time - last_click_time[button] < double_click_timing:
+        if current_time - last_click_time[button] < INI_DOUBLE_CLICK_TIMING:
             # Double clic détecté
             handle_double_click(button)
         else:
@@ -308,7 +286,7 @@ def on_mouse_move(x, y):
 
     # Choix du mode en fonction du mode absolu
     INI_MOVING_MODE = INI_MOVING_MODE_TARGETZOOM if absolute_mode else INI_MOVING_MODE_DEFAULT
-    print(f"on_mouse_move INI_MOVING_MODE {INI_MOVING_MODE} absolute_mode {absolute_mode}")
+    #print(f"on_mouse_move INI_MOVING_MODE {INI_MOVING_MODE} absolute_mode {absolute_mode}")
     # Gestion des touches gauche et droite
     if INI_MOVING_MODE in ["horizontal", "omnidirectional"]:
         if not is_cursor_near_center_x(x):
@@ -345,7 +323,6 @@ def on_mouse_move(x, y):
             if keys_pressed.get(Key.down, False):
                 release_key(Key.down)
 
-
 def check_cursor_position():
     #print(f"Fonction check_cursor_position")
     global keys_pressed
@@ -367,7 +344,6 @@ def check_cursor_position():
 
         time.sleep(INI_REFRESH_CHECK_POSITION)  # Vérification toutes les 100 ms
 
-
 def on_key_press(key):
     global running
     if key == keyboard.Key.esc:
@@ -388,7 +364,7 @@ def calculate_attraction_force(x, y, force_mode_x='spring', force_mode_y='spring
 
     # Calcul de la force en Y
     force_y = calculate_force_component(distance_y, distance, force_mode_y, y)
-    print(f"Forces force_x {force_x}, force_y {force_y}")
+    #print(f"Forces force_x {force_x}, force_y {force_y}")
     return force_x, force_y
 
 def calculate_force_component(distance_component, total_distance, force_type, current_position):
@@ -406,10 +382,16 @@ def calculate_force_component(distance_component, total_distance, force_type, cu
         return distance_component / total_distance**2
     elif force_type == 'tension':
         # Force de tension
-        if total_distance > tolerance:
-            return distance_component
+        if absolute_mode:
+            if total_distance > (tolerance_absolute_x+tolerance_absolute_y)/2:
+                return distance_component
+            else:
+                return 0
         else:
-            return 0
+            if total_distance > (tolerance_absolute_x+tolerance_absolute_y)/2:
+                return distance_component
+            else:
+                return 0
     elif force_type == 'null':
         # Aucune force - conserve la position actuelle
         return 0
@@ -450,8 +432,42 @@ def start_mouse_control():
     key_listener.stop()
     cursor_check_thread.join()
 
+def set_globals_from_ini(config):
+    for section in config.sections():
+        for key, value in config.items(section):
+            # Suppression des guillemets pour les chaînes de caractères
+            if value.startswith(("'", '"')) and value.endswith(("'", '"')):
+                value = value[1:-1]
+            # Conversion en entier, flottant ou booléen si nécessaire
+            elif value.isdigit():
+                value = int(value)
+            elif value.replace('.', '', 1).isdigit():
+                value = float(value)
+            elif value.lower() in ['true', 'false']:
+                value = True if value.lower() == 'true' else False
+
+            # Création d'une variable globale pour chaque clé trouvée dans le fichier INI
+            globals()[key.upper()] = value
+            logging.info(f"{key.upper()} = {repr(globals()[key.upper()])}")
+
 def main():
     check_if_already_running()
+
+    # Récupération des arguments de la ligne de commande
+    game, system = extract_game_and_system(sys.argv)
+
+    if not game or not system:
+        print("Erreur : Paramètres 'game' et 'system' manquants.")
+        sys.exit(1)
+
+    print(f"Lancement du script pour le jeu '{game}' sur le système '{system}'.")
+
+    # Chargement de la configuration
+    config = load_config_mapper(system, game)
+    if config is None:
+        print("Erreur lors du chargement de la configuration.")
+        sys.exit(1)
+    set_globals_from_ini(config)
 
     # Affichage de bienvenue
     print(">> GunRPointer - Control FPS with Pointer HID")
