@@ -28,13 +28,16 @@ config = configparser.ConfigParser()
 def load_config_mapper(system, game):
     # Obtention du répertoire de travail actuel
     current_working_dir = os.getcwd()
-
+    # Remonter puis redescendre jusqu'à au ini du plugin
+    # C:\RetroBat\emulationstation\.emulationstation\scripts\game-start\mappers\psx\Medal of Honor (EU).ini
+    current_working_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_working_dir))))
+    current_working_dir = os.path.join(current_working_dir, 'plugins', 'GunRPointer')
     # Construction du chemin vers le fichier INI spécifique au jeu
     ini_path = os.path.join(current_working_dir, 'mappers', system, f"{game}.ini")
 
     # Vérification de l'existence du fichier INI spécifique
     if not os.path.exists(ini_path):
-        logging.info(f"Fichier INI spécifique non trouvé pour {system}/{game}, utilisation du fichier par défaut.")
+        logging.info(f"Fichier INI {ini_path} spécifique non trouvé pour {system}/{game}, utilisation du fichier par défaut.")
         sys.exit(1)
         # Si non trouvé, utilisation du chemin du fichier INI par défaut
         #ini_path = os.path.join(current_working_dir, 'mappers', 'default.ini')
