@@ -36,7 +36,8 @@ INI_FORCE_FACTOR_ABSOLUTE_MODE_X = 1
 INI_FORCE_CONSTANT_ABSOLUTE_MODE_Y = 0
 INI_FORCE_FACTOR_ABSOLUTE_MODE_Y = 1
 
-INI_INVERSE_Y = False
+INI_DEFAULT_MODE_INVERSE_Y = False
+INI_ABSOLUTE_MODE_INVERSE_Y = False
 
 INI_TOLERANCE_DEFAULT_MODE_X = 3
 INI_TOLERANCE_DEFAULT_MODE_Y = 30
@@ -356,7 +357,7 @@ def on_mouse_move(x, y):
     mouse_moved = True
     KeyUp = Key.up
     KeyDown = Key.down
-    if INI_INVERSE_Y:
+    if (absolute_mode and INI_ABSOLUTE_MODE_INVERSE_Y) or (not absolute_mode and INI_DEFAULT_MODE_INVERSE_Y):
         KeyUp = Key.down
         KeyDown = Key.up
     # Choix du mode en fonction du mode absolu
@@ -403,7 +404,7 @@ def check_cursor_position():
     global keys_pressed
     KeyUp = Key.up
     KeyDown = Key.down
-    if INI_INVERSE_Y:
+    if (absolute_mode and INI_ABSOLUTE_MODE_INVERSE_Y) or (not absolute_mode and INI_DEFAULT_MODE_INVERSE_Y):
         KeyUp = Key.down
         KeyDown = Key.up
     while running:
