@@ -2,7 +2,7 @@ import pyautogui
 import time
 from math import sqrt
 from pynput import mouse, keyboard
-from pynput.keyboard import Key, Controller, Listener
+from pynput.keyboard import Key, KeyCode, Controller, Listener
 import threading
 from threading import Timer
 import sys
@@ -158,17 +158,21 @@ key_press_times = {}
 key_press_times_lock = threading.Lock()
 def press_and_release_after_delay(key, delay=0.05):
     global key_press_times
+
+    # Convertir la clé si c'est une chaîne
+    key_to_use = convert_key_string_to_vk(key) if isinstance(key, str) else key
+
     with key_press_times_lock:
         current_time = time.time()
-        keyboard_controller.press(key)
-        key_press_times[key] = current_time
+        keyboard_controller.press(key_to_use)
+        key_press_times[key_to_use] = current_time
 
     def release_key_after_delay():
         time.sleep(delay)
         with key_press_times_lock:
-            if key in key_press_times:
-                keyboard_controller.release(key)
-                key_press_times.pop(key, None)
+            if key_to_use in key_press_times:
+                keyboard_controller.release(key_to_use)
+                key_press_times.pop(key_to_use, None)
 
     threading.Thread(target=release_key_after_delay).start()
 
@@ -186,38 +190,49 @@ def release_all_keys():
     for key in keys_pressed.keys():
         release_key(key)
 
+def convert_key_string_to_vk(key_string):
+    if key_string.startswith("numpad") or key_string.startswith("keypad"):
+        # Extraire le numéro et convertir en VK
+        num = int(key_string[6:])
+        vk = 96 + num  # VK_NUMPAD0 est 96
+        return KeyCode.from_vk(vk)
+    elif key_string.startswith('f') and len(key_string) > 1:
+        # Pour les touches F1-F12, etc.
+        f_num = int(key_string[1:])
+        vk = 111 + f_num  # VK_F1 est 112
+        return KeyCode.from_vk(vk)
+    # Ajoutez d'autres cas ici si nécessaire
+    return key_string
+
 def press_key(key, record_action=False):
-    #print(f"Fonction press_key : {key}")
     global actions_enregistrees, keys_pressed, absolute_mode
     current_time = time.time()
 
-    if not keys_pressed.get(key, False):
-        keyboard_controller.press(key)
-        keys_pressed[key] = True
+    key_to_press = convert_key_string_to_vk(key) if isinstance(key, str) else key
+
+    if not keys_pressed.get(key_to_press, False):
+        keyboard_controller.press(key_to_press)
+        keys_pressed[key_to_press] = True
 
         if record_action and absolute_mode:
-            # Enregistrer l'action
             actions_enregistrees.append((key, current_time))
             print(f"Action enregistrée : {key} pressée à {current_time}")
 
 def release_key(key, record_action=False):
-    #print(f"Fonction release_key : {key}")
     global actions_enregistrees, absolute_mode
-    if keys_pressed.get(key, False):
-        keyboard_controller.release(key)
-        keys_pressed[key] = False
+    key_to_release = convert_key_string_to_vk(key) if isinstance(key, str) else key
+
+    if keys_pressed.get(key_to_release, False):
+        keyboard_controller.release(key_to_release)
+        keys_pressed[key_to_release] = False
 
         if record_action and absolute_mode:
-            # Calculer la durée et mettre à jour l'action
             for i, action in enumerate(actions_enregistrees):
                 if action[0] == key and len(action) == 2:
                     start_time = action[1]
                     duration = time.time() - start_time
                     actions_enregistrees[i] = (key, start_time, duration)
                     print(f"Action mise à jour : {action} avec durée {duration}")
-
-    #else:
-        # print(f"La touche {key} n'était pas pressée")
 
 def get_inverse_key(key):
     # Définir les touches opposées
@@ -410,7 +425,7 @@ def check_cursor_position():
 
 def on_key_press(key):
     global running
-    if key == keyboard.Key.esc:
+    if key == keyboard.Key.esc or key == keyboard.Key.f12:
         running = False
 
 def on_key_release(key):
@@ -533,6 +548,31 @@ def set_globals_from_ini(config):
             # Création d'une variable globale pour chaque clé trouvée dans le fichier INI
             globals()[key.upper()] = value
             logging.info(f"{key.upper()} = {repr(globals()[key.upper()])}")
+
+# Non utilisée
+def modify_retroarch_config():
+    current_working_dir = os.getcwd()
+    # Remonter puis redescendre jusqu'à au cfg
+    current_working_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_working_dir))))
+    # Construction du chemin vers le fichier CFG spécifique
+    retroarch_config_path = os.path.join(current_working_dir, 'emulators', 'retroarch', 'retroarch.cfg')
+    with open(retroarch_config_path, 'a') as file:
+        #input_player1_up = "up"
+        #input_player1_down = "down"
+        #input_player1_left = "left"
+        #input_player1_right = "right"
+        #input_player1_a = "keypad6" #Changer d'arme
+        #input_player1_b = "keypad2" #Tir
+        #input_player1_x = "keypad8" #Saut
+        #input_player1_y = "keypad4" #Action/Recharger
+        #input_player1_r = "d" # Sur la droite
+        #input_player1_r2 = "e" # Mode visée/tir/absolu
+        #input_player1_l = "q" # Se baisser
+        #input_player1_l2 = "a" #Sur la gauche
+        #input_player1_select = "rshift"
+        #input_player1_start = "enter"
+        file.write("\nlog_to_file = \"true\"\n")
+    logging.info("Configuration de RetroArch modifiée pour activer la journalisation")
 
 def main():
     check_if_already_running()
