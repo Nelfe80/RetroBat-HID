@@ -18,6 +18,70 @@ absolute_mode = False
 mouse_moved = False
 pyautogui.FAILSAFE = False
 
+INI_DELAY_RELEASE_AFTER_PRESS = 0.05
+INI_DOUBLE_CLICK_TIMING = 0.2
+INI_REFRESH_CHECK_POSITION = 0.1
+# spring / friction / elastic / gravitational / tension
+INI_FORCE_TYPE_DEFAULT_MODE_X = 'spring'
+INI_FORCE_TYPE_DEFAULT_MODE_Y = 'positive'
+INI_FORCE_TYPE_ABSOLUTE_MODE_X = 'elastic'
+INI_FORCE_TYPE_ABSOLUTE_MODE_Y = 'elastic'
+
+INI_FORCE_CONSTANT_X = 0
+INI_FORCE_FACTOR_X = 1
+INI_FORCE_CONSTANT_Y = 0
+INI_FORCE_FACTOR_Y = 1
+INI_FORCE_CONSTANT_ABSOLUTE_MODE_X = 0
+INI_FORCE_FACTOR_ABSOLUTE_MODE_X = 1
+INI_FORCE_CONSTANT_ABSOLUTE_MODE_Y = 0
+INI_FORCE_FACTOR_ABSOLUTE_MODE_Y = 1
+
+INI_INVERSE_Y = False
+
+INI_TOLERANCE_DEFAULT_MODE_X = 3
+INI_TOLERANCE_DEFAULT_MODE_Y = 30
+INI_TOLERANCE_ABSOLUTE_MODE_X = 1
+INI_TOLERANCE_ABSOLUTE_MODE_Y = 1
+
+INI_REFRESH_FORCE_CALCUL = 0.01
+#vertical / horizontal / omnidirectional in relative pointer mode
+INI_MOVING_MODE_DEFAULT = 'omnidirectional'
+#vertical / horizontal / omnidirectional in absolute pointer mode
+INI_MOVING_MODE_TARGETZOOM = 'omnidirectional'
+
+USE_RELEASE_ALL_KEYS_SIMPLE_CLICK_LEFT = False
+USE_RELEASE_ALL_KEYS_SIMPLE_CLICK_MIDDLE = False
+USE_RELEASE_ALL_KEYS_SIMPLE_CLICK_RIGHT = True
+USE_RELEASE_ALL_KEYS_DOUBLE_CLICK_LEFT = False
+USE_RELEASE_ALL_KEYS_DOUBLE_CLICK_MIDDLE = False
+USE_RELEASE_ALL_KEYS_DOUBLE_CLICK_RIGHT = False
+USE_RELEASE_ALL_KEYS_RELEASE_CLICK_LEFT = False
+USE_RELEASE_ALL_KEYS_RELEASE_CLICK_MIDDLE = False
+USE_RELEASE_ALL_KEYS_RELEASE_CLICK_RIGHT = False
+USE_RELEASE_ALL_KEYS_SCROLL_UP = False
+USE_RELEASE_ALL_KEYS_SCROLL_DOWN = False
+
+USE_ABSOLUTE_MODE_SIMPLE_CLICK_LEFT = False
+USE_ABSOLUTE_MODE_SIMPLE_CLICK_MIDDLE = False
+USE_ABSOLUTE_MODE_SIMPLE_CLICK_RIGHT = True
+USE_ABSOLUTE_MODE_DOUBLE_CLICK_LEFT = False
+USE_ABSOLUTE_MODE_DOUBLE_CLICK_MIDDLE = False
+USE_ABSOLUTE_MODE_DOUBLE_CLICK_RIGHT = False
+USE_ABSOLUTE_MODE_RELEASE_CLICK_LEFT = False
+USE_ABSOLUTE_MODE_RELEASE_CLICK_MIDDLE = False
+USE_ABSOLUTE_MODE_RELEASE_CLICK_RIGHT = False
+USE_ABSOLUTE_MODE_SCROLL_UP = False
+USE_ABSOLUTE_MODE_SCROLL_DOWN = False
+
+KEY_CLICK_LEFT = 'w'
+KEY_CLICK_MIDDLE = 'x'
+KEY_CLICK_RIGHT = 'e'
+KEY_DOUBLE_CLICK_LEFT = 'z'
+KEY_DOUBLE_CLICK_MIDDLE = 'a'
+KEY_DOUBLE_CLICK_RIGHT = 'q'
+KEY_SCROLL_UP = 's'
+KEY_SCROLL_DOWN = 'd'
+
 tolerance_default_x = 0
 tolerance_default_y = 0
 tolerance_absolute_x = 0
@@ -29,7 +93,6 @@ def load_config_mapper(system, game):
     # Obtention du répertoire de travail actuel
     current_working_dir = os.getcwd()
     # Remonter puis redescendre jusqu'à au ini du plugin
-    # C:\RetroBat\emulationstation\.emulationstation\scripts\game-start\mappers\psx\Medal of Honor (EU).ini
     current_working_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_working_dir))))
     current_working_dir = os.path.join(current_working_dir, 'plugins', 'GunRPointer')
     # Construction du chemin vers le fichier INI spécifique au jeu
@@ -55,20 +118,8 @@ def extract_game_and_system(args):
     system = next((arg.split("=")[1] for arg in args if "--system" in arg), "")
     return game, system
 
-def extract_ini_settings(config):
-    global reactivity, attraction, refresh, mouse_button_right, mouse_button_left
-    INI_TOLERANCE_DEFAULT_MODE_X = int(config['Settings']['tolerancedx'])
-    tolerance_default_y = int(config['Settings']['tolerancedy'])
-    tolerance_absolute_x = int(config['Settings']['toleranceax'])
-    tolerance_absolute_y = int(config['Settings']['toleranceay'])
-    reactivity = float(config['Settings']['reactivity'])
-    attraction = int(config['Settings']['attraction'])
-    refresh = float(config['Settings']['refresh'])
-    mouse_button_right = config['Keys']['mouse_button_right']
-    mouse_button_left = config['Keys']['mouse_button_left']
-
 def initialize_mouse_and_keyboard_control():
-    global running, keys_pressed, keyboard_controller, screen_width, screen_height, centre_x, centre_y, tolerance_x, tolerance_y
+    global running, keys_pressed, keyboard_controller, screen_width, screen_height, centre_x, centre_y, tolerance_default_x, tolerance_default_y, tolerance_absolute_x, tolerance_absolute_y
 
     # État des touches
     keys_pressed = {
@@ -122,10 +173,12 @@ def press_and_release_after_delay(key, delay=0.05):
     threading.Thread(target=release_key_after_delay).start()
 
 def is_cursor_near_center_x(x):
+    global absolute_mode
     if absolute_mode: return centre_x - tolerance_absolute_x <= x <= centre_x + tolerance_absolute_x
     else: return centre_x - tolerance_default_x <= x <= centre_x + tolerance_default_x
 
 def is_cursor_near_center_y(y):
+    global absolute_mode
     if absolute_mode: return centre_y - tolerance_absolute_y <= y <= centre_y + tolerance_absolute_y
     else: return centre_y - tolerance_default_y <= y <= centre_y + tolerance_default_y
 
@@ -135,7 +188,7 @@ def release_all_keys():
 
 def press_key(key, record_action=False):
     #print(f"Fonction press_key : {key}")
-    global actions_enregistrees, keys_pressed
+    global actions_enregistrees, keys_pressed, absolute_mode
     current_time = time.time()
 
     if not keys_pressed.get(key, False):
@@ -149,7 +202,7 @@ def press_key(key, record_action=False):
 
 def release_key(key, record_action=False):
     #print(f"Fonction release_key : {key}")
-    global actions_enregistrees
+    global actions_enregistrees, absolute_mode
     if keys_pressed.get(key, False):
         keyboard_controller.release(key)
         keys_pressed[key] = False
@@ -286,7 +339,11 @@ def on_mouse_scroll(x, y, dx, dy):
 def on_mouse_move(x, y):
     global keys_pressed, mouse_moved, absolute_mode
     mouse_moved = True
-
+    KeyUp = Key.up
+    KeyDown = Key.down
+    if INI_INVERSE_Y:
+        KeyUp = Key.down
+        KeyDown = Key.up
     # Choix du mode en fonction du mode absolu
     INI_MOVING_MODE = INI_MOVING_MODE_TARGETZOOM if absolute_mode else INI_MOVING_MODE_DEFAULT
     #print(f"on_mouse_move INI_MOVING_MODE {INI_MOVING_MODE} absolute_mode {absolute_mode}")
@@ -311,25 +368,29 @@ def on_mouse_move(x, y):
     # Gestion des touches haut et bas
     if INI_MOVING_MODE in ["vertical", "omnidirectional"]:
         if not is_cursor_near_center_y(y):
-            if y < centre_y and not keys_pressed.get(Key.up, False):
-                press_key(Key.up)
-            elif y >= centre_y and keys_pressed.get(Key.up, False):
-                release_key(Key.up)
+            if y < centre_y and not keys_pressed.get(KeyUp, False):
+                press_key(KeyUp)
+            elif y >= centre_y and keys_pressed.get(KeyUp, False):
+                release_key(KeyUp)
 
-            if y > centre_y and not keys_pressed.get(Key.down, False):
-                press_key(Key.down)
-            elif y <= centre_y and keys_pressed.get(Key.down, False):
-                release_key(Key.down)
+            if y > centre_y and not keys_pressed.get(KeyDown, False):
+                press_key(KeyDown)
+            elif y <= centre_y and keys_pressed.get(KeyDown, False):
+                release_key(KeyDown)
         else:
-            if keys_pressed.get(Key.up, False):
-                release_key(Key.up)
-            if keys_pressed.get(Key.down, False):
-                release_key(Key.down)
+            if keys_pressed.get(KeyUp, False):
+                release_key(KeyUp)
+            if keys_pressed.get(KeyDown, False):
+                release_key(KeyDown)
 
 def check_cursor_position():
     #print(f"Fonction check_cursor_position")
     global keys_pressed
-
+    KeyUp = Key.up
+    KeyDown = Key.down
+    if INI_INVERSE_Y:
+        KeyUp = Key.down
+        KeyDown = Key.up
     while running:
         x, y = pyautogui.position()
 
@@ -340,10 +401,10 @@ def check_cursor_position():
                 release_key(Key.right)
 
         if is_cursor_near_center_y(y):
-            if keys_pressed.get(Key.up, False):  # Vérifier si la touche est pressée avant de la relâcher
-                release_key(Key.up)
-            if keys_pressed.get(Key.down, False):  # Vérifier si la touche est pressée avant de la relâcher
-                release_key(Key.down)
+            if keys_pressed.get(KeyUp, False):  # Vérifier si la touche est pressée avant de la relâcher
+                release_key(KeyUp)
+            if keys_pressed.get(KeyDown, False):  # Vérifier si la touche est pressée avant de la relâcher
+                release_key(KeyDown)
 
         time.sleep(INI_REFRESH_CHECK_POSITION)  # Vérification toutes les 100 ms
 
@@ -356,22 +417,42 @@ def on_key_release(key):
     global running
 
 def calculate_attraction_force(x, y, force_mode_x='spring', force_mode_y='spring'):
+    global absolute_mode
     distance_x = centre_x - x
     distance_y = centre_y - y
     distance = sqrt(distance_x**2 + distance_y**2)
     if distance == 0:
         return 0, 0
 
+    force_constant_x = 0
+    force_factor_x = 1
+    force_constant_y = 0
+    force_factor_y = 1
+    if absolute_mode:
+        force_constant_x = INI_FORCE_CONSTANT_ABSOLUTE_MODE_X
+        force_factor_x = INI_FORCE_FACTOR_ABSOLUTE_MODE_X
+        force_constant_y = INI_FORCE_CONSTANT_ABSOLUTE_MODE_Y
+        force_factor_y = INI_FORCE_FACTOR_ABSOLUTE_MODE_Y
+    else:
+        force_constant_x = INI_FORCE_CONSTANT_X
+        force_factor_x = INI_FORCE_FACTOR_X
+        force_constant_y = INI_FORCE_CONSTANT_Y
+        force_factor_y = INI_FORCE_FACTOR_Y
+
     # Calcul de la force en X
-    force_x = calculate_force_component(distance_x, distance, force_mode_x, x)
+    force_x = (calculate_force_component(distance_x, distance, force_mode_x, x) * force_factor_x) + force_constant_x
 
     # Calcul de la force en Y
-    force_y = calculate_force_component(distance_y, distance, force_mode_y, y)
+    force_y = (calculate_force_component(distance_y, distance, force_mode_y, y) * force_factor_y) + force_constant_y
     #print(f"Forces force_x {force_x}, force_y {force_y}")
     return force_x, force_y
 
 def calculate_force_component(distance_component, total_distance, force_type, current_position):
+    global absolute_mode
     if force_type == 'spring':
+        # Force proportionnelle à la distance (ressort)
+        return distance_component / total_distance * total_distance
+    elif force_type == 'spring':
         # Force proportionnelle à la distance (ressort)
         return distance_component / total_distance * total_distance
     elif force_type == 'friction':
@@ -410,7 +491,7 @@ def calculate_force_component(distance_component, total_distance, force_type, cu
 
 
 def start_mouse_control():
-    global running
+    global running, absolute_mode
     print("Starting mouse control.")
 
     mouse_listener = mouse.Listener(on_click=on_mouse_click, on_move=on_mouse_move, on_scroll=on_mouse_scroll)
