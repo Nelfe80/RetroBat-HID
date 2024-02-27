@@ -193,23 +193,57 @@ def release_all_keys():
 
 def convert_key_string_to_vk(key_string):
     if key_string.startswith("numpad") or key_string.startswith("keypad"):
-        # Extraire le numéro et convertir en VK
         num = int(key_string[6:])
         vk = 96 + num  # VK_NUMPAD0 est 96
         return KeyCode.from_vk(vk)
+
     elif key_string.startswith('f') and len(key_string) > 1:
-        # Pour les touches F1-F12, etc.
         f_num = int(key_string[1:])
         vk = 111 + f_num  # VK_F1 est 112
         return KeyCode.from_vk(vk)
-    # Ajoutez d'autres cas ici si nécessaire
+
+    # Si la touche n'est pas une touche spéciale, un numpad ou une touche fonctionnelle,
+    # retournez la chaîne de caractères telle quelle
     return key_string
 
+# Dictionnaire des noms des touches spéciales
+special_keys = {
+    "pageup": "page_up",
+    "pagedown": "page_down",
+    "home": "home",
+    "end": "end",
+    "insert": "insert",
+    "delete": "delete",
+    "enter": "enter",
+    "backspace": "backspace",
+    "space": "space",
+    "tab": "tab",
+    "clear": "clear",
+    "shift": "shift",
+    "ctrl": "ctrl",
+    "alt": "alt",
+    "pause": "pause",
+    "select": "select",
+    "print": "print_screen",
+    "execute": "execute",
+    "snapshot": "snapshot",
+    "help": "help",
+    # Ajoutez d'autres touches spéciales ici si nécessaire
+}
+
+# Fonction pour appuyer sur une touche
 def press_key(key, record_action=False):
     global actions_enregistrees, keys_pressed, absolute_mode
     current_time = time.time()
 
-    key_to_press = convert_key_string_to_vk(key) if isinstance(key, str) else key
+    if isinstance(key, str) and key in special_keys:
+        key_to_press = getattr(Key, special_keys[key])  # Construit la référence à l'objet Key
+    elif isinstance(key, str):
+        key_to_press = convert_key_string_to_vk(key)  # Utilisez votre fonction de conversion ici
+    else:
+        key_to_press = key
+
+    print(f"key_to_press = {key_to_press}")
 
     if not keys_pressed.get(key_to_press, False):
         keyboard_controller.press(key_to_press)
@@ -220,8 +254,14 @@ def press_key(key, record_action=False):
             print(f"Action enregistrée : {key} pressée à {current_time}")
 
 def release_key(key, record_action=False):
-    global actions_enregistrees, absolute_mode
-    key_to_release = convert_key_string_to_vk(key) if isinstance(key, str) else key
+    global actions_enregistrees, keys_pressed, absolute_mode
+
+    if isinstance(key, str) and key in special_keys:
+        key_to_release = getattr(Key, special_keys[key])  # Construit la référence à l'objet Key
+    elif isinstance(key, str):
+        key_to_release = convert_key_string_to_vk(key)  # Utilisez votre fonction de conversion ici
+    else:
+        key_to_release = key
 
     if keys_pressed.get(key_to_release, False):
         keyboard_controller.release(key_to_release)
@@ -233,7 +273,7 @@ def release_key(key, record_action=False):
                     start_time = action[1]
                     duration = time.time() - start_time
                     actions_enregistrees[i] = (key, start_time, duration)
-                    print(f"Action mise à jour : {action} avec durée {duration}")
+                    print(f"Action mise à jour : {key} avec durée {duration}")
 
 def get_inverse_key(key):
     # Définir les touches opposées
